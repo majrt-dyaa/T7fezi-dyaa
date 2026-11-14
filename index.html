@@ -481,7 +481,7 @@ function shrink(file){return new Promise((res,rej)=>{
   im.onerror=()=>{URL.revokeObjectURL(u);rej(new Error('img'))};im.src=u})}
 async function phPut(id,data){
   await Promise.race([dbReady,wait(2500)]);PH[id]=data;
-  if(DB&&!ro){try{await DB.doc('ph/'+id).set({d:data,t:Date.now()});return true}catch(e){}}
+  if(DB&&!ro){try{await DB.doc('ph/'+id).set({d:data,t:Date.now()});return true}catch(e){console.warn('ph',e);delete PH[id];return false}}
   return lsSet('diya-ph-'+id,data);
 }
 async function phGet(id){
@@ -673,7 +673,7 @@ async function pushLoad(){if(ro||!window.FB)return;try{PCFG=await FB.get('state/
 async function pushSend(title,body){
   if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,err:'لم تُضبط مفاتيح OneSignal بعد'};
   const send=seg=>fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},
-    body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',included_segments:[seg],headings:{en:title,ar:title},contents:{en:body||title,ar:body||title},url:location.origin+location.pathname})});
+    body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',included_segments:[seg],headings:{en:title,ar:title},contents:{en:body||' ',ar:body||' '},url:location.origin+location.pathname})});
   try{let r=await send('Total Subscriptions');let j=await r.json().catch(()=>({}));
     if(!r.ok||(j.errors&&String(j.errors).includes('segment'))){r=await send('Subscribed Users');j=await r.json().catch(()=>({}))}
     if(!r.ok||j.errors)return {ok:false,err:JSON.stringify(j.errors||r.status).slice(0,140)};
@@ -690,9 +690,8 @@ setInterval(async()=>{
   if(!PCFG||PCFG.auto===false)return;
   for(const k of fresh){
     let t,bd;
-    t='مجرّة ضياء';
-    if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x||x.hide)continue;bd='📣 '+x.t+(x.b?'\n'+x.b:'')}
-    else{const x=ach.find(z=>'h'+z.id===k);if(!x||x.hide)continue;bd='🏆 '+(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'')+': '+x.t}
+    if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x||x.hide)continue;t=(TYPES[x.k]?TYPES[x.k]+' · ':'')+x.t;bd=x.b||''}
+    else{const x=ach.find(z=>'h'+z.id===k);if(!x||x.hide)continue;t='🏆 '+(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'');bd=x.t}
     const r=await pushSend(t,bd);say(r.ok?'🔔 أُرسل إشعار للمشتركين':'⚠️ ما انرسل الإشعار: '+r.err,r.ok?'':'err');
   }
 },1500);
