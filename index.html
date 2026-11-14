@@ -572,8 +572,8 @@ function vHome(){
 function vAnn(v){
   const e=v.e||{},L=ann.filter(show).sort((a,b)=>(b.pin?1:0)-(a.pin?1:0)||b.at.localeCompare(a.at));
   return `<h2>📣 لوحة الإعلانات</h2>
-  <form class="frm ed" data-a="ann-save"><input class="wide" name="t" required maxlength="80" placeholder="عنوان الإعلان" value="${esc(e.t||'')}"><textarea class="wide" name="b" rows="3" placeholder="محتوى الإعلان">${esc(e.b||'')}</textarea><select name="k">${opts(Object.entries(TYPES),e.k||'news')}</select><input type="datetime-local" name="at" value="${e.at||nowL()}"><label><input type="checkbox" name="pin" ${e.pin?'checked':''}> تثبيت في الأعلى</label><button class="primary">${e.id?'حفظ التعديل':'نشر الإعلان'}</button></form>
-  ${L.map(a=>`<div class="an ${a.hide?'dim':''}" style="--c:${TCOL[a.k]}"><div><b>${a.pin?'📌 ':''}${TYPES[a.k]||''} · ${esc(a.t)}</b><p>${esc(a.b)}</p><small class="mu">${tfmt(a.at)}</small></div><span class="ed"><button data-a="ann-edit" data-id="${a.id}">✎</button><button data-a="ann-pin" data-id="${a.id}">📌</button><button data-a="ann-hide" data-id="${a.id}">👁</button><button data-a="ann-del" data-id="${a.id}">✕</button></span></div>`).join('')||'<p class="mu">لا توجد إعلانات.</p>'}`;
+  <form class="frm ed" data-a="ann-save"><input class="wide" name="t" required maxlength="80" placeholder="عنوان الإعلان" value="${esc(e.t||'')}"><textarea class="wide" name="b" rows="3" placeholder="محتوى الإعلان">${esc(e.b||'')}</textarea><label class="wide mu">📷 صورة مع الإعلان (اختيارية)${e.p?' · للإعلان صورة حالية':''}<input type="file" name="ph" accept="image/*"></label>${e.p?`<label class="wide"><input type="checkbox" name="rmph"> إزالة الصورة الحالية</label>`:''}<select name="k">${opts(Object.entries(TYPES),e.k||'news')}</select><input type="datetime-local" name="at" value="${e.at||nowL()}"><label><input type="checkbox" name="pin" ${e.pin?'checked':''}> تثبيت في الأعلى</label><button class="primary">${e.id?'حفظ التعديل':'نشر الإعلان'}</button></form>
+  ${L.map(a=>`<div class="an ${a.hide?'dim':''}" style="--c:${TCOL[a.k]}"><div><b>${a.pin?'📌 ':''}${TYPES[a.k]||''} · ${esc(a.t)}</b><p>${esc(a.b)}</p>${thumb(a,a.t)}<small class="mu">${tfmt(a.at)}</small></div><span class="ed"><button data-a="ann-edit" data-id="${a.id}">✎</button><button data-a="ann-pin" data-id="${a.id}">📌</button><button data-a="ann-hide" data-id="${a.id}">👁</button><button data-a="ann-del" data-id="${a.id}">✕</button></span></div>`).join('')||'<p class="mu">لا توجد إعلانات.</p>'}`;
 }
 
 /* ----- سجل الإنجازات (مع الصور) ----- */
@@ -690,8 +690,9 @@ setInterval(async()=>{
   if(!PCFG||PCFG.auto===false)return;
   for(const k of fresh){
     let t,bd;
-    if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x||x.hide)continue;t='📣 '+x.t;bd=x.b||'إعلان جديد في مجرّة ضياء'}
-    else{const x=ach.find(z=>'h'+z.id===k);if(!x||x.hide)continue;t='🏆 إنجاز جديد';bd=(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'')+': '+x.t}
+    t='مجرّة ضياء';
+    if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x||x.hide)continue;bd='📣 '+x.t+(x.b?'\n'+x.b:'')}
+    else{const x=ach.find(z=>'h'+z.id===k);if(!x||x.hide)continue;bd='🏆 '+(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'')+': '+x.t}
     const r=await pushSend(t,bd);say(r.ok?'🔔 أُرسل إشعار للمشتركين':'⚠️ ما انرسل الإشعار: '+r.err,r.ok?'':'err');
   }
 },1500);
@@ -705,7 +706,7 @@ function aPush(){
   <label class="mu"><input type="checkbox" name="auto" ${PCFG&&PCFG.auto===false?'':'checked'}> إرسال تلقائي عند نشر إعلان أو إنجاز</label>
   <button class="primary">حفظ</button></form>
   <h3>إرسال يدوي / تجربة</h3>
-  <form class="frm pushman"><input name="t" required maxlength="60" placeholder="العنوان" value="تجربة إشعار ✦"><input name="b" maxlength="140" placeholder="النص" value="هذا إشعار تجريبي من مجرّة ضياء"><button>إرسال الآن</button></form>
+  <form class="frm pushman"><input name="t" required maxlength="60" placeholder="العنوان" value="مجرّة ضياء"><input name="b" maxlength="140" placeholder="النص" value="هذا إشعار تجريبي من مجرّة ضياء"><button>إرسال الآن</button></form>
   <p class="mu">المفتاح يُحفظ في Firebase ولا يقرؤه إلا حساب المدير.</p>`;
 }
 document.addEventListener('submit',async e=>{
@@ -825,7 +826,7 @@ $('pv').onclick=e=>{
   if(a==='ann-edit'||a==='ach-edit'||a==='tl-edit'){view.e=A(a==='ann-edit'?ann:a==='ach-edit'?ach:tl);drawV();return}
   else if(a==='ann-pin'){const x=A(ann);x.pin=!x.pin}
   else if(a==='ann-hide'){const x=A(ann);x.hide=!x.hide}
-  else if(a==='ann-del')ann=ann.filter(x=>x.id!==id);
+  else if(a==='ann-del'){const z=ann.find(x=>x.id===id);if(z&&z.p)phDel(z.p);ann=ann.filter(x=>x.id!==id)}
   else if(a==='ach-hide'){const x=A(ach);x.hide=!x.hide}
   else if(a==='ach-del'){const x=A(ach);if(x)phDel(x.p);ach=ach.filter(y=>y.id!==id)}
   else if(a==='aw-del')FAM[view.i].aw=FAM[view.i].aw.filter(x=>x.id!==id);
@@ -854,7 +855,10 @@ $('pv').onsubmit=async e=>{
     saveIdx();view.pe=null;renderHead();drawV();say('✔ حُفظت إعدادات البرنامج');return}
   if(!G())return;
   let msg='✔ تم الحفظ';
-  if(a==='ann-save'){const o={id:ed?ed.id:uid(),t:d.t.trim(),b:(d.b||'').trim(),k:d.k,at:d.at,pin:!!d.pin,hide:ed?!!ed.hide:false};ann=ed?ann.map(x=>x.id===ed.id?o:x):[...ann,o]}
+  if(a==='ann-save'){const o={id:ed?ed.id:uid(),t:d.t.trim(),b:(d.b||'').trim(),k:d.k,at:d.at,pin:!!d.pin,hide:ed?!!ed.hide:false,p:ed?ed.p:undefined};
+    if(d.rmph&&o.p){phDel(o.p);o.p=undefined}
+    if(d.ph&&d.ph.size>0){try{const data=await shrink(d.ph),pid=o.p||'ph'+uid();if(await phPut(pid,data))o.p=pid;else msg='⚠️ حُفظ الإعلان لكن تعذّر حفظ الصورة'}catch(x){msg='⚠️ حُفظ الإعلان لكن الصورة غير صالحة أو كبيرة جدًا'}}
+    if(o.p===undefined)delete o.p;ann=ed?ann.map(x=>x.id===ed.id?o:x):[...ann,o]}
   else if(a==='ach-save'){
     const o={id:ed?ed.id:uid(),f:+d.f,d:d.d,i:d.i,t:d.t.trim(),hide:ed?!!ed.hide:false,p:ed?ed.p:undefined};
     if(d.rmph&&o.p){phDel(o.p);o.p=undefined}
@@ -964,7 +968,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH8';
+const BUILD='GH9';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
