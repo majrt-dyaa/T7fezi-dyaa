@@ -322,7 +322,7 @@ new ResizeObserver(size).observe(cv);
 const LOGO=new Image();try{LOGO.src=document.querySelector('header img').src}catch(e){}
 const SW={on:false,i:-1,land:false,t0:0};
 function orbG(){const lg=pg===N?50:8,cx=W/2,cy=(H-lg)/2+4;const rx=Math.max(60,W/2-Math.max(58,74*S)),ryM=Math.max(50,(H-lg)/2-Math.max(54,70*S));const ry=Math.min(ryM,rx*(H>W?1.15:.78));return{cx,cy,rx,ry}}
-function orbOf(f){const n=FAM.length,i=Math.max(0,FAM.indexOf(f)),fr=n<2?.6:.36+.64*i/(n-1);return{fr,ph:i*2.39996+.5,per:(55+85*fr)*1000}}
+function orbOf(f){const n=FAM.length,i=Math.max(0,FAM.indexOf(f)),fr=n<2?.62:.42+.58*i/(n-1);return{fr,ph:i*2.39996+.5,per:(55+85*fr)*1000}}
 const pos=(f,t)=>{const g=orbG(),o=orbOf(f),a=o.ph+(RM?0:t/o.per*Math.PI*2);return{x:g.cx+Math.cos(a)*g.rx*o.fr,y:g.cy+Math.sin(a)*g.ry*o.fr,a}};
 const targetR=f=>(11+17*Math.sqrt(val(f)/REF))*S;
 function flagHolder(){const x=fh.length?fh[fh.length-1]:null;return x&&FAM[x.f]?FAM[x.f]:null}
@@ -336,15 +336,23 @@ function draw(t){
   const G=orbG();
   /* المدارات */
   FAM.forEach(f=>{const o=orbOf(f);ctx.strokeStyle=f.c+(SW.on&&FAM[SW.i]===f?'88':'2e');ctx.lineWidth=SW.on&&FAM[SW.i]===f?2:1;ctx.setLineDash([2,6]);ctx.beginPath();ctx.ellipse(G.cx,G.cy,G.rx*o.fr,G.ry*o.fr,0,0,7);ctx.stroke()});ctx.setLineDash([]);
-  /* شمس ضياء */
-  const sr=Math.max(26,34*S),pulse=RM?1:1+.04*Math.sin(t/700);
-  let g=ctx.createRadialGradient(G.cx,G.cy,0,G.cx,G.cy,sr*3.2*pulse);g.addColorStop(0,'#FFE7B8cc');g.addColorStop(.25,'#E08A5C66');g.addColorStop(.6,'#4FB3AE1f');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.beginPath();ctx.arc(G.cx,G.cy,sr*3.2*pulse,0,7);ctx.fill();
-  if(!RM){ctx.save();ctx.translate(G.cx,G.cy);ctx.rotate(t/9000);ctx.strokeStyle='#FFE7B833';ctx.lineWidth=1.2;for(let k=0;k<12;k++){ctx.rotate(Math.PI/6);ctx.beginPath();ctx.moveTo(sr*1.15,0);ctx.lineTo(sr*(1.7+.25*Math.sin(t/500+k)),0);ctx.stroke()}ctx.restore()}
-  g=ctx.createRadialGradient(G.cx-sr*.3,G.cy-sr*.3,0,G.cx,G.cy,sr);g.addColorStop(0,'#fff8e8');g.addColorStop(.5,'#F2C48A');g.addColorStop(1,'#C9663E');ctx.fillStyle=g;ctx.beginPath();ctx.arc(G.cx,G.cy,sr,0,7);ctx.fill();
-  if(LOGO.complete&&LOGO.naturalWidth){const lw=sr*2.9,lh=lw*LOGO.naturalHeight/LOGO.naturalWidth;ctx.save();ctx.globalAlpha=.95;ctx.globalCompositeOperation='screen';ctx.drawImage(LOGO,G.cx-lw/2,G.cy+sr*1.05,lw,lh);ctx.restore()}
+  /* شمس ضياء والشعار في قلبها */
+  const sr=Math.max(34,48*S),pulse=RM?1:1+.035*Math.sin(t/700);
+  let g=ctx.createRadialGradient(G.cx,G.cy,sr*.8,G.cx,G.cy,sr*3.4*pulse);g.addColorStop(0,'#FFD9A0aa');g.addColorStop(.22,'#E08A5C55');g.addColorStop(.55,'#4FB3AE1c');g.addColorStop(1,'#00000000');ctx.fillStyle=g;ctx.beginPath();ctx.arc(G.cx,G.cy,sr*3.4*pulse,0,7);ctx.fill();
+  if(!RM){ctx.save();ctx.translate(G.cx,G.cy);ctx.rotate(t/9000);ctx.lineWidth=1.4;for(let k=0;k<16;k++){ctx.rotate(Math.PI/8);ctx.strokeStyle=k%2?'#FFE7B840':'#4FB3AE40';ctx.beginPath();ctx.moveTo(sr*1.12,0);ctx.lineTo(sr*(1.6+.28*Math.sin(t/500+k)),0);ctx.stroke()}ctx.restore()}
+  g=ctx.createRadialGradient(G.cx,G.cy,sr*.78,G.cx,G.cy,sr*1.06);g.addColorStop(0,'#F2C48A00');g.addColorStop(.55,'#FFE3B0');g.addColorStop(.8,'#E08A5C');g.addColorStop(1,'#E08A5C00');ctx.fillStyle=g;ctx.beginPath();ctx.arc(G.cx,G.cy,sr*1.06,0,7);ctx.fill();
+  g=ctx.createRadialGradient(G.cx,G.cy-sr*.25,sr*.1,G.cx,G.cy,sr*.86);g.addColorStop(0,'#13201e');g.addColorStop(1,'#020504');ctx.fillStyle=g;ctx.beginPath();ctx.arc(G.cx,G.cy,sr*.86,0,7);ctx.fill();
+  if(LOGO.complete&&LOGO.naturalWidth){const lw=sr*1.5,lh=lw*LOGO.naturalHeight/LOGO.naturalWidth;ctx.save();ctx.beginPath();ctx.arc(G.cx,G.cy,sr*.84,0,7);ctx.clip();ctx.globalCompositeOperation='lighter';ctx.drawImage(LOGO,G.cx-lw/2,G.cy-lh/2,lw,lh);ctx.restore()}
   /* شعاع دوّامة الضوء */
-  const fhH=SW_HIDE||SW.on||!done?null:flagHolder(),top=ranked()[0];
-  if(pg===N&&!fhH){const fa=RM?-.9:t/1800,fr=sr*2.05,fx=G.cx+Math.cos(fa)*fr,fy=G.cy+Math.sin(fa)*fr*.85;
+  const flying=SW.fly&&t-SW.fly<SW_FLY;const fhH=SW.land&&FAM[SW.i]?(flying?null:FAM[SW.i]):(SW_HIDE||SW.on||!done?null:flagHolder()),top=ranked()[0];
+  const cfa=RM?-.9:t/1800,cfr=sr*2.05,cfx=G.cx+Math.cos(cfa)*cfr,cfy=G.cy+Math.sin(cfa)*cfr*.85;
+  if(flying){if(!SW.from)SW.from={x:cfx,y:cfy};const q=Math.min(1,(t-SW.fly)/SW_FLY),e=1-Math.pow(1-q,3),wp=pos(FAM[SW.i],t);
+    const fx=SW.from.x+(wp.x-SW.from.x)*e,fy=SW.from.y+(wp.y-SW.from.y)*e-Math.sin(Math.PI*e)*60*S;
+    if(!RM)for(let k=0;k<3;k++)parts.push({x:fx,y:fy,vx:(Math.random()-.5)*1.2,vy:(Math.random()-.5)*1.2,life:30,c:k?'#F2C48A':FAM[SW.i].c});
+    const fg=ctx.createRadialGradient(fx,fy,0,fx,fy,34*S);fg.addColorStop(0,'#FFE7B8cc');fg.addColorStop(1,'#FFE7B800');ctx.fillStyle=fg;ctx.beginPath();ctx.arc(fx,fy,34*S,0,7);ctx.fill();
+    ctx.font=`${Math.max(22,34*S)}px sans-serif`;ctx.textAlign='center';ctx.fillText('🚩',fx,fy+11*S)}
+  else if(SW.land){SW.from=null}
+  if(pg===N&&!fhH&&!flying){const fa=cfa,fr=cfr,fx=G.cx+Math.cos(fa)*fr,fy=G.cy+Math.sin(fa)*fr*.85;
     ctx.strokeStyle='#F2C48A55';ctx.lineWidth=1.2;ctx.setLineDash([3,6]);ctx.lineDashOffset=-t/50;ctx.beginPath();ctx.ellipse(G.cx,G.cy,fr,fr*.85,0,0,7);ctx.stroke();ctx.setLineDash([]);
     const fg=ctx.createRadialGradient(fx,fy,0,fx,fy,22*S+8);fg.addColorStop(0,'#F2C48A88');fg.addColorStop(1,'#F2C48A00');ctx.fillStyle=fg;ctx.beginPath();ctx.arc(fx,fy,22*S+8,0,7);ctx.fill();
     ctx.font=`${Math.max(18,24*S)}px sans-serif`;ctx.textAlign='center';ctx.fillText('🚩',fx,fy+8*S)}
@@ -443,21 +451,21 @@ function beep(f,d=.12,v=.05){return;try{AC=AC||new(window.AudioContext||window.w
 async function count(pairs){for(let s=1;s<=14;s++){pairs.forEach(([d,b])=>b.textContent='+'+r2(d*s/14));beep(260+s*14,.04,.03);await wait(45)}}
 const row=f=>{const r=document.createElement('div');r.className='lr';r.style.color=f.c;r.innerHTML=`<span>${f.n}</span><b>+0</b>`;return r};
 /* ===== دوّامة الضوء ===== */
-const SWIRL_MS=23500;
+const SWIRL_MS=18200,SW_FLY=1100;
 const vib=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
 async function swirl(ti){
   const n=FAM.length;if(n<1||ti<0)return;
   if(view)closeV();
-  if(RM||n===1){SW.on=true;SW.i=ti;SW.land=true;await wait(1200);return}
+  if(RM||n===1){SW.on=true;SW.i=ti;SW.land=true;SW.fly=0;await wait(800);return}
   const now=performance.now(),ord=FAM.map((f,i)=>[i,(pos(f,now).a%(Math.PI*2)+Math.PI*2)%(Math.PI*2)]).sort((a,b)=>a[1]-b[1]).map(x=>x[0]);
   const tp=ord.indexOf(ti),st=Math.floor(Math.random()*n),D=q=>70+1050*Math.pow(q,2.6);
   const base=Math.round(SWIRL_MS/(70+1050/3.6)),total=base+((tp-(st+base)%n)+n)%n;
   const msgs=[[0,'والراية تذهب إلى…'],[.4,'الضوء يبحث بين الكواكب…'],[.68,'اقتربنا…'],[.86,'…']];let mi=0,t0=performance.now();
   SW.on=true;SW.land=false;
-  for(let k=0;k<=total;k++){SW.i=ord[(st+k)%n];const q=k/total;while(mi<msgs.length&&q>=msgs[mi][0]){if(ov.classList.contains('see'))ovT.textContent=msgs[mi][1];mi++}vib(k>total-4?18:6);await wait(D(q))}
-  SW.land=true;vib([40,60,40]);await wait(1800);
+  for(let k=0;k<=total;k++){SW.i=ord[(st+k)%n];const q=k/total;while(mi<msgs.length&&q>=msgs[mi][0]){if(ov.classList.contains('see'))ovT.textContent=msgs[mi][1];mi++}vib(k>total-4?18:6);if(k<total)await wait(D(q))}
+  SW.land=true;SW.from=null;SW.fly=performance.now();vib([40,60,40]);await wait(SW_FLY+80);
 }
-function swirlEnd(){SW.on=false;SW.land=false;SW.i=-1}
+function swirlEnd(){SW.on=false;SW.land=false;SW.i=-1;SW.fly=0;SW.from=null}
 function totalsList(w,T){ovL.innerHTML='';const v=f=>T&&T[FAM.indexOf(f)]!=null?+T[FAM.indexOf(f)]:dsum(f);[...FAM].sort((a,b)=>v(b)-v(a)).forEach(f=>{const r=document.createElement('div');r.className='lr'+(f===w?' lw':'');r.style.color=f.c;r.innerHTML=`<span>${f===w?'🚩 ':''}${esc(f.n)}</span><b>${r2(v(f))}</b>`;ovL.append(r)})}
 async function announce(){
   if(busy||lk())return;
@@ -1031,7 +1039,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH11';
+const BUILD='GH12';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
