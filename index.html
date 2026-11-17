@@ -915,7 +915,7 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.classList||!
 
 function cbdRender(){const el=$('cbd');if(!el)return;
   const U=(typeof UIC==='object'&&UIC)||{},on=!!U.cbd;
-  if(SW_HIDE||!FAM.some(f=>dsum(f)>0)||(ro&&!(on&&done))){el.innerHTML='';return}
+  if(SW_HIDE||(ro&&(!(on&&done)||!FAM.some(f=>dsum(f)>0)))){el.innerHTML='';return}
   const sn=c=>c.n.replace(/^ال/,'').split(' ')[0],fn=f=>f.n.replace(/^(الأسرة|أسرة|اسرة)\s+/,''),L=[...FAM].sort((a,b)=>dsum(b)-dsum(a));
   const row=(lab,col,vals,bold)=>{const mx=Math.max(...vals);return `<tr><th style="color:${col};text-align:right;white-space:nowrap">${lab}</th>${vals.map(v=>`<td class="${v&&v===mx?'cbm':''}">${bold?'<b>':''}${r2(v)}${bold?'</b>':''}</td>`).join('')}</tr>`};
   el.innerHTML=`<h3>📊 مجموع كل لجنة</h3>${ro?'':`<button class="cbt-t ${on?'on':''}">${on?'👁 ظاهر للطلاب بعد الإعلان · اضغط للإخفاء':'🙈 مخفي عن الطلاب · اضغط للإظهار'}</button>`}<div class="cbw"><table class="dt cbt"><tr><th></th>${L.map(f=>`<th style="color:${f.c}">${esc(fn(f))}</th>`).join('')}</tr>${CATS.map(c=>row(sn(c),c.c,L.map(f=>+f.dc[c.k]||0))).join('')}${row('المجموع','#efe9df',L.map(dsum),true)}</table></div><p class="mu" style="font-size:12px">الرقم البرتقالي = أعلى درجة في اللجنة.</p>`}
@@ -1162,7 +1162,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH21';
+const BUILD='GH22';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
