@@ -930,9 +930,13 @@ const badgeName=k=>(BADGES.find(b=>b[0]===k)||['',''])[1];
 const MYV=()=>{try{return JSON.parse(localStorage.getItem('diya-visitor'))}catch(e){return null}};
 /* ---------- إرسال إشعار لطلاب محددين ---------- */
 async function pushTo(vids,title,body){
-  if(!vids.length||!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false};
-  const filters=[];vids.slice(0,90).forEach((v,i)=>{if(i)filters.push({operator:'OR'});filters.push({field:'tag',key:'vid',relation:'=',value:v})});
-  try{const r=await fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',filters,headings:{en:title,ar:title},contents:{en:body,ar:body},url:location.origin+location.pathname})});const j=await r.json().catch(()=>({}));return {ok:r.ok&&!j.errors,n:j.recipients}}catch(e){return {ok:false}}
+  if(!vids.length||!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,why:'nokey'};
+  const names=[...new Set(vids.map(v=>vName(v)).filter(n=>n&&n!=='(طالب)'))];
+  const conds=[...vids.map(v=>({field:'tag',key:'vid',relation:'=',value:v})),...names.map(n=>({field:'tag',key:'name',relation:'=',value:n}))].slice(0,100);
+  const filters=[];conds.forEach((c,i)=>{if(i)filters.push({operator:'OR'});filters.push(c)});
+  try{const r=await fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',filters,headings:{en:title,ar:title},contents:{en:body,ar:body},url:location.origin+location.pathname})});
+    const j=await r.json().catch(()=>({}));const n=+j.recipients||0;
+    return {ok:r.ok&&!!j.id,n,err:j.errors?JSON.stringify(j.errors).slice(0,120):''}}catch(e){return {ok:false,err:String(e.message||e)}}
 }
 /* ---------- المدير ---------- */
 let MSGS=null,RECS={},msgSub=null,MSEL=new Set(),MQ='';
@@ -979,8 +983,9 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.classList||!
   const btn=f.querySelector('button.primary');btn.disabled=true;btn.textContent='⏳ جارٍ الإرسال…';let ok=0;const now=Date.now(),pushNow=[];
   for(const vid of ids){const n=vName(vid),m={id:uid(),t:txt.replaceAll('{الاسم}',n).slice(0,400),b,at:now};if(due>now){m.due=due;m.pu=0}else m.pu=1;
     const L=[...(MSGS[vid]||[]),m].slice(-60);try{await DB.doc('inbox/'+vid).set({m:L});MSGS[vid]=L;ok++;if(!m.due)pushNow.push(vid)}catch(x){}}
-  if(pushNow.length){const r=await pushTo(pushNow,'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة'+(b?' مع وسام '+b:'')+' ✦');if(r.ok===false&&PKEY)say('⚠️ الرسالة وصلت، لكن تعذّر إرسال الإشعار','err')}
-  MSEL.clear();say(`✔ أُرسلت ${ok} رسالة`+(due>now?' (مجدولة)':''));drawV();
+  let pmsg='';if(pushNow.length){const r=await pushTo(pushNow,'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة'+(b?' مع وسام '+b:'')+' ✦');
+    pmsg=r.why==='nokey'?' · ⚠️ مفتاح الإشعارات غير محفوظ (تبويب 🔔 الإشعارات)':r.ok&&r.n?` · 🔔 وصل الإشعار لـ ${r.n} جهاز`:' · ⚠️ ما وصل إشعار لأي جهاز: الطالب ما فعّل الإشعارات من أيقونة الموقع، أو ما فتحه بعد التحديث'+(r.err?' ('+r.err+')':'')}
+  MSEL.clear();say(`✔ أُرسلت ${ok} رسالة`+(due>now?' (مجدولة)':'')+pmsg,pmsg.includes('⚠️')?'err':'');drawV();
 },true);
 /* الرسائل المجدولة: جهاز المدير يرسل إشعارها في وقتها */
 setInterval(async()=>{if(ro||!MSGS||!DB)return;const now=Date.now();for(const [vid,L] of Object.entries(MSGS)){const due=L.filter(m=>m.due&&m.due<=now&&!m.pu);if(!due.length)continue;due.forEach(m=>m.pu=1);try{await DB.doc('inbox/'+vid).set({m:L});await pushTo([vid],'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة ✦')}catch(x){}}},30000);
@@ -1252,7 +1257,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH24';
+const BUILD='GH25';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
@@ -1378,14 +1383,16 @@ openV('home');updNow();
       }catch(e){console.warn('onesignal',e)}
     });
   }
-  function upd(){if(!OS)return;const on=OS.User.PushSubscription.optedIn;B.textContent=on?'🔔 الإشعارات مفعّلة':'🔔 فعّل الإشعارات';B.classList.toggle('on',!!on)}
+  function tagMe(){try{const v=JSON.parse(localStorage.getItem('diya-visitor'));if(OS&&v){if(v.n)OS.User.addTag('name',v.n);if(v.id)OS.User.addTag('vid',v.id)}}catch(e){}}
+  setInterval(tagMe,60000);
+  function upd(){if(!OS)return;tagMe();const on=OS.User.PushSubscription.optedIn;B.textContent=on?'🔔 الإشعارات مفعّلة':'🔔 فعّل الإشعارات';B.classList.toggle('on',!!on)}
   B.onclick=async()=>{
     if(isIOS&&!standalone){tell('عشان تجيك الإشعارات على الآيفون/الآيباد:<br>1) اضغط زر <b>المشاركة ⬆️</b> في Safari<br>2) اختر <b>إضافة إلى الشاشة الرئيسية</b><br>3) افتح «مجرّة ضياء» من الأيقونة الجديدة<br>4) اضغط <b>🔔 فعّل الإشعارات</b> ووافق');return}
     if(!OS){tell('لحظات… جارٍ تجهيز الإشعارات، حاول مرة ثانية بعد ثوانٍ.');return}
     try{
       if(OS.User.PushSubscription.optedIn){tell('الإشعارات مفعّلة ✅ بتوصلك الإعلانات والإنجازات الجديدة.');return}
       await OS.Notifications.requestPermission();
-      if(OS.Notifications.permission){await OS.User.PushSubscription.optIn();tell('تم ✅ بتوصلك إشعارات الإعلانات والإنجازات الجديدة حتى والجهاز مقفل.')}
+      if(OS.Notifications.permission){await OS.User.PushSubscription.optIn();tagMe();tell('تم ✅ بتوصلك إشعارات الإعلانات والإنجازات الجديدة حتى والجهاز مقفل.')}
       else tell('ما تم السماح بالإشعارات. تقدر تفعّلها من إعدادات الجهاز ← الإشعارات ← مجرّة ضياء.');
       upd();
     }catch(e){tell('تعذّر التفعيل: '+(e&&e.message||e))}
