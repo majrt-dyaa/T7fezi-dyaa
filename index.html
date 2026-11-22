@@ -1091,7 +1091,7 @@ function vVote(){myFbInit();
   return `<h2>🗳 صوتك يهمنا</h2><p class="mu">صوّت، وقيّم الأنشطة، وشاركنا أفكارك ✦</p>${ro?'':'<p class="note">👁 هذي الصفحة كما يشوفها الطلاب. تنشئ التصويت والتقييم من ⚙ الإدارة ← 🗳 التصويت والتقييم.</p>'}
   <h3>🗳 التصويت</h3>${P.length?P.map(pollCard).join(''):EMP('🗳','ما فيه تصويت مفتوح الحين','أول ما ينفتح تصويت بيوصلك إشعار')}
   <h3>⭐ قيّم النشاط</h3>${R.length?R.map(rateCard).join(''):EMP('⭐','ما فيه نشاط للتقييم الحين','بعد الأنشطة تقدر تقيّمها من هنا')}
-  ${FX.sgOff?'':`<h3>💡 صندوق الاقتراحات</h3><form class="frm sgf"><textarea class="wide" name="t" rows="3" maxlength="500" required placeholder="اكتب اقتراحك أو فكرتك…"></textarea><label class="mu"><input type="checkbox" name="an"> أرسل بدون اسم</label><button class="primary">💡 إرسال الاقتراح</button></form><p class="mu" style="font-size:12px">اقتراحك يوصل للجنة التحفيزية والمتابعة فقط.</p>`}`}
+  ${FX.sgOff?'':`<h3>💡 صندوق الاقتراحات</h3><form class="frm sgf"><textarea class="wide" name="t" rows="3" maxlength="500" required placeholder="اكتب اقتراحك أو فكرتك…"></textarea><label class="mu wide"><input type="checkbox" name="an"> 🕶 أخفِ اسمي عند عرض الاقتراح على المشرفين</label><button class="primary">💡 إرسال الاقتراح</button></form><p class="mu" style="font-size:12px">اقتراحك يوصل لمسؤول اللجنة التحفيزية والمتابعة باسمك، وإذا اخترت الإخفاء ما يظهر اسمك لأحد غيره.</p>`}`}
 document.addEventListener('click',async e=>{
   const st=e.target.closest('.rtf [data-st]');if(st){e.preventDefault();const f=st.closest('form'),k=+st.dataset.st;f.s.value=k;f.querySelectorAll('[data-st]').forEach(b=>b.classList.toggle('on',+b.dataset.st<=k));return}
   const po=e.target.closest('[data-pv]');if(po&&ro){e.stopPropagation();const p=openPolls().find(x=>x.id===po.dataset.pv);if(!p){say('التصويت مغلق');return}if(!myFbInit()){say('سجّل اسمك أولًا','err');return}
@@ -1104,7 +1104,7 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.classList)re
     const t=f.t.value.trim().replace(/\s+\n/g,'\n').slice(0,500);if(t.length<3){say('اكتب اقتراحك');return}
     let c={};try{c=JSON.parse(localStorage.getItem('diya-sgc'))||{}}catch(x){}if(c.d!==today())c={d:today(),n:0};if(c.n>=6){say('وصلت حد الاقتراحات اليوم، شكرًا لحماسك 🌟');return}
     const v=MYV(),btn=f.querySelector('button');btn.disabled=true;
-    try{await FB.putPub('sg/'+uid()+Math.random().toString(36).slice(2,6),{t,n:f.an.checked||!v?'':String(v.n||'').slice(0,40),at:Date.now()});c.n++;try{localStorage.setItem('diya-sgc',JSON.stringify(c))}catch(x){}f.reset();say('💡 وصل اقتراحك، شكرًا لك')}
+    try{await FB.putPub('sg/'+uid()+Math.random().toString(36).slice(2,6),{t,n:!v?'':(f.an.checked?'🕶|':'')+String(v.n||'').slice(0,40),at:Date.now()});c.n++;try{localStorage.setItem('diya-sgc',JSON.stringify(c))}catch(x){}f.reset();say('💡 وصل اقتراحك، شكرًا لك')}
     catch(x){say('⚠️ ما وصل الاقتراح، حاول بعد شوي','err')}btn.disabled=false}
 },true);
 
@@ -1144,10 +1144,12 @@ let SGS=null,SGERR=false,sgSub=null,sgJ='';
 function sgStart(){if(sgSub||ro||!window.FB||!FB.colWatch)return;sgSub=1;sgSub=FB.colWatch('sg',L=>{L.sort((a,b)=>(b.at||0)-(a.at||0));const j=JSON.stringify(L);if(j===sgJ)return;sgJ=j;SGS=L;SGERR=false;if(view&&view.t==='adm'&&view.tab==='sg')softDraw()},()=>{SGERR=true;if(view&&view.t==='adm'&&view.tab==='sg')softDraw()})}
 const sgSeen=()=>+(lsGet('diya-sgseen')||0);
 function sgBadge(){const n=(SGS||[]).filter(x=>(x.at||0)>sgSeen()).length;return n?' ('+n+')':''}
+let SGPUB=false;const sgName=n=>{n=n||'';const h=n.startsWith('🕶|');return{n:h?n.slice('🕶|'.length):n,h}};
 function aSg(){sgStart();setTimeout(()=>lsSet('diya-sgseen',Date.now()),1500);const seen=sgSeen();
-  return `<h3>💡 صندوق الاقتراحات</h3><button class="sgt flt ${FX.sgOff?'':'on'}">${FX.sgOff?'🙈 الصندوق مقفل عن الطلاب · اضغط للفتح':'📬 الصندوق مفتوح للطلاب · اضغط للقفل'}</button>
-  ${SGERR?'<p class="note bad">⚠️ تعذّر قراءة الاقتراحات. حدّث قواعد Firebase (الخطوات في رسالة التحديث).</p>':SGS===null?'<p class="mu">جارٍ التحميل…</p>':SGS.length?`<div class="mlog">${SGS.map(x=>`<div class="mli${(x.at||0)>seen?' newi':''}"><div><b>${x.n?esc(x.n):'🕶 بدون اسم'}</b> <small class="mu">${x.at?tfmt(x.at):''}</small></div><div style="white-space:pre-wrap">${esc(x.t||'')}</div><button class="xb sgd" data-id="${esc(x.id)}">✕</button></div>`).join('')}</div>`:EMP('💡','ما وصلت اقتراحات للحين','الطلاب يرسلون اقتراحاتهم من صفحة 🗳 صوتك')}`}
+  return `<h3>💡 صندوق الاقتراحات</h3><div class="row"><button class="sgt flt ${FX.sgOff?'':'on'}">${FX.sgOff?'🙈 الصندوق مقفل عن الطلاب · اضغط للفتح':'📬 الصندوق مفتوح للطلاب · اضغط للقفل'}</button><button class="sgp flt ${SGPUB?'on':''}">${SGPUB?'📽 وضع العرض للمشرفين: الأسماء المطلوب إخفاؤها مخفية · اضغط للرجوع':'📽 وضع العرض للمشرفين'}</button></div>
+  ${SGERR?'<p class="note bad">⚠️ تعذّر قراءة الاقتراحات. حدّث قواعد Firebase (الخطوات في رسالة التحديث).</p>':SGS===null?'<p class="mu">جارٍ التحميل…</p>':SGS.length?`<div class="mlog">${SGS.map(x=>`<div class="mli${(x.at||0)>seen?' newi':''}"><div>${(()=>{const z=sgName(x.n);return !z.n?'<b>🕶 بدون اسم</b>':z.h&&SGPUB?'<b>🕶 بدون اسم</b>':`<b>${esc(z.n)}</b>${z.h?' <span class="mbd">🕶 طلب إخفاء اسمه عن المشرفين</span>':''}`})()} <small class="mu">${x.at?tfmt(x.at):''}</small></div>${SGPUB?'':''}<div style="white-space:pre-wrap">${esc(x.t||'')}</div><button class="xb sgd" data-id="${esc(x.id)}">✕</button></div>`).join('')}</div>`:EMP('💡','ما وصلت اقتراحات للحين','الطلاب يرسلون اقتراحاتهم من صفحة 🗳 صوتك')}`}
 document.addEventListener('click',async e=>{if(ro)return;
+  if(e.target.closest('.sgp')){e.stopPropagation();SGPUB=!SGPUB;drawV();return}
   const t=e.target.closest('.sgt');if(t){e.stopPropagation();await fxSave({sgOff:!FX.sgOff});drawV();return}
   const d=e.target.closest('.sgd');if(d){e.stopPropagation();if(!conf2(d))return;try{await FB.del('sg/'+d.dataset.id);say('حُذف الاقتراح')}catch(x){say('⚠️ تعذّر الحذف','err')}}
 },true);
@@ -1580,7 +1582,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH28';
+const BUILD='GH29';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
