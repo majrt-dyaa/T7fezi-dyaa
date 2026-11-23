@@ -1382,14 +1382,14 @@ function aReq(){rqStart();const own=FB.isOwner&&FB.isOwner(),fd=d=>d?new Date(d)
   return `<h3>🔐 طلبات دخول الإدارة</h3><p class="mu">أي أحد يضغط «دخول المدير» يكتب اسمه ويرسل طلب، ويوصلك إيميل فيه رابط موافقة. ما يدخل الإدارة إلا بعد موافقتك.${own?'':' <b>الموافقة والرفض للمالك فقط.</b>'}</p>
   ${REQS===null?'<p class="mu">جارٍ التحميل…</p>':REQS.length?`<div class="mlog">${REQS.map(r=>`<div class="mli newi"><div><b>${esc(r.n||'')}</b> <small class="mu">${fd(r.at)}</small></div><small class="mu">${esc((r.ua||'').slice(0,90))}</small>${own?`<div class="row"><button class="primary rqok" data-id="${esc(r.id)}" data-n="${esc(r.n||'')}">✅ موافقة</button><button class="rqno" data-id="${esc(r.id)}">❌ رفض</button></div>`:''}</div>`).join('')}</div>`:EMP('🔐','ما فيه طلبات الحين','')}
   <h3>👥 المشرفين الموافَق عليهم</h3>${ADMS&&ADMS.length?`<div class="mlog">${ADMS.map(a=>`<div class="mli"><div><b>${esc(a.n||'')}</b> <small class="mu">${fd(a.at)}</small></div>${own?`<button class="xb rqrv" data-id="${esc(a.id)}">إلغاء الصلاحية</button>`:''}</div>`).join('')}</div>`:'<p class="mu">ما فيه مشرفين غيرك.</p>'}
-  ${own?`<h3>📧 إيميل التنبيه</h3><form class="frm rqmf"><input class="wide" name="m" type="email" required placeholder="إيميلك" value="${esc(FX.mail||'')}"><button class="primary">حفظ</button><button type="button" class="rqtest">📨 إرسال إيميل تجريبي</button></form>
+  ${own?`<h3>📧 إيميل التنبيه</h3><form class="frm rqmf"><input class="wide" name="m" type="email" required placeholder="إيميلك" value="${esc(FX.mail||'alqahtaniabdallh65@gmail.com')}"><button class="primary">حفظ</button><button type="button" class="rqtest">📨 إرسال إيميل تجريبي</button></form>
   <p class="mu" style="font-size:13px">أول مرة: اضغط «إيميل تجريبي»، بيوصلك من FormSubmit إيميل «Activate Form»، افتحه واضغط Activate مرة وحدة. بعدها كل طلب يوصلك. (شيّك على Spam لو ما لقيته)</p>`:''}`}
 document.addEventListener('click',async e=>{if(ro)return;const b=e.target.closest('.rqok,.rqno,.rqrv,.rqtest');if(!b)return;e.stopPropagation();
   try{if(b.classList.contains('rqok')){await FB.approve(b.dataset.id,b.dataset.n);say('✅ تمت الموافقة')}
   else if(b.classList.contains('rqno')){if(!conf2(b,'تأكيد الرفض؟'))return;await FB.deny(b.dataset.id);say('تم رفض الطلب')}
   else if(b.classList.contains('rqrv')){if(!conf2(b,'تأكيد الإلغاء؟'))return;await FB.revoke(b.dataset.id);say('أُلغيت صلاحيته')}
-  else if(b.classList.contains('rqtest')){if(!FX.mail){say('احفظ إيميلك أولًا','err');return}b.disabled=true;
-    const r=await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(FX.mail),{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({_subject:'✅ تجربة تنبيهات مجرّة ضياء',_captcha:'false','الرسالة':'إذا وصلك هذا الإيميل فالتنبيهات شغالة.'})}).catch(()=>null);
+  else if(b.classList.contains('rqtest')){b.disabled=true;const to=FX.mail||'alqahtaniabdallh65@gmail.com';
+    const r=await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(to),{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({_subject:'✅ تجربة تنبيهات مجرّة ضياء',_captcha:'false','الرسالة':'إذا وصلك هذا الإيميل فالتنبيهات شغالة.'})}).catch(()=>null);
     b.disabled=false;say(r&&r.ok?'📨 انرسل، شيّك إيميلك (وSpam)':'⚠️ ما انرسل، تأكد من الإيميل',r&&r.ok?'':'err')}}
   catch(x){say('⚠️ تعذّر: حدّث قواعد Firebase','err')}},true);
 document.addEventListener('submit',async e=>{const f=e.target;if(!f.classList||!f.classList.contains('rqmf'))return;e.preventDefault();e.stopPropagation();if(await fxSave({mail:f.m.value.trim()}))say('✔ حُفظ الإيميل')},true);
@@ -1638,7 +1638,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH31';
+const BUILD='GH32';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
@@ -1682,7 +1682,7 @@ openV('home');updNow();
 <label class="sr" for="lgc_in">اسمك</label><input id="lgc_in" name="c" maxlength="40" placeholder="اسمك" aria-label="اسمك" autocomplete="name">
 <details id="lge"><summary class="mu">دخول المالك بالإيميل</summary>
 <input name="e" type="email" placeholder="الإيميل" aria-label="الإيميل" autocomplete="username">
-<input name="p" type="password" placeholder="كلمة السر" aria-label="كلمة السر" autocomplete="current-password"></details>
+<input name="p" type="password" placeholder="كلمة السر" aria-label="كلمة السر" autocomplete="current-password"><button type="button" class="primary" id="lgown">دخول المالك</button></details>
 <button class="primary" id="lgb">إرسال طلب الدخول</button><button type="button" id="lgc">إلغاء</button>
 <p id="lgm" class="mu" role="status" aria-live="polite"></p></form></div>
 <div id="reg" hidden><form id="regf"><h3>✦ أهلًا بك في مجرّة ضياء</h3><p class="mu">اكتب اسمك مرة واحدة فقط للدخول</p>
@@ -1708,7 +1708,7 @@ openV('home');updNow();
   L.onclick=e=>{if(e.target===L)document.getElementById('lgc').click()};
   const ADMIN_EMAIL='admin@diya-galaxy.app';
   const AREQ='diya-areq';let pollT=null;
-  async function mailReq(n,uid){try{const fx=await FB.get('state/fx');const to=fx&&fx.mail;if(!to)return false;
+  async function mailReq(n,uid){try{const fx=await FB.get('state/fx').catch(()=>null);const to=(fx&&fx.mail)||'alqahtaniabdallh65@gmail.com';
     const r=await fetch('https://formsubmit.co/ajax/'+encodeURIComponent(to),{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({_subject:'🔐 طلب دخول الإدارة – مجرّة ضياء',_template:'table',_captcha:'false','الاسم':n,'الوقت':new Date().toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'}),'الجهاز':navigator.userAgent.slice(0,120),'للموافقة أو الرفض افتح الرابط':location.origin+location.pathname+'?approve='+uid})});return r.ok}catch(e){return false}}
   function pendUI(n){L.hidden=false;document.getElementById('reg').hidden=true;F.c.value=n||'';F.c.disabled=true;document.getElementById('lgb').hidden=true;M.innerHTML='⏳ أُرسل طلبك للمدير… انتظر الموافقة.<br><small>تقدر تقفل الصفحة، وأول ما يوافق افتح الموقع وبتلقى الإدارة مفتوحة.</small> <button type="button" id="lgx" style="margin-top:8px">إلغاء الطلب</button>';
     document.getElementById('lgx').onclick=async()=>{clearInterval(pollT);try{await FB.deny(window.FB_PEND.uid)}catch(e){}try{localStorage.removeItem(AREQ)}catch(e){}await FB.logout();location.reload()};
@@ -1727,10 +1727,12 @@ openV('home');updNow();
       if(k==='ok'){await FB.approve(id,q.n);box.querySelector('.apw').innerHTML='<h3>✅ تمت الموافقة</h3><p>'+String(q.n).replace(/[<>&]/g,'')+' صار مشرف.</p>'}
       else if(k==='no'){await FB.deny(id);box.querySelector('.apw').innerHTML='<h3>تم الرفض</h3>'}
       setTimeout(()=>box.remove(),k==='ok'||k==='no'?1800:0)}})();
+  document.getElementById('lgown').onclick=async()=>{const e=F.e.value.trim(),pw=F.p.value;if(!e||!pw){M.textContent='اكتب إيميلك وكلمة السر';F.e.focus();return}
+    clearInterval(pollT);M.textContent='جارٍ الدخول…';try{const P=window.FB_PEND;if(P){try{await FB.deny(P.uid)}catch(x){}await FB.logout()}await FB.login(e,pw);try{localStorage.removeItem(AREQ)}catch(x){}M.textContent='✔ تم، جارٍ فتح الإدارة…';history.replaceState(null,'',location.pathname);setTimeout(()=>location.reload(),500)}catch(x){F.p.select&&F.p.select();M.textContent=msg(x)}};
   F.onsubmit=async ev=>{ev.preventDefault();if(!window.FB){M.textContent=window.FB_ERR||'Firebase غير متاح';return}
     const c=F.c.value.trim(),e=F.e.value.trim(),pw=F.p.value;
     if(!(e&&pw)){if(c.length<2){M.textContent='اكتب اسمك';F.c.focus();return}
-      M.textContent='جارٍ إرسال الطلب…';try{const uid=await FB.reqAdmin(c);try{localStorage.setItem(AREQ,JSON.stringify({n:c,uid,at:Date.now()}))}catch(x){}const ok=await mailReq(c,uid);pendUI(c);if(!ok)M.insertAdjacentHTML('beforeend','<br><small>(ما وصل الإيميل، بس الطلب ظاهر للمدير في لوحة الإدارة)</small>')}catch(x){M.textContent=msg(x)}return}
+      M.textContent='جارٍ إرسال الطلب…';try{const uid=await FB.reqAdmin(c);try{localStorage.setItem(AREQ,JSON.stringify({n:c,uid,at:Date.now()}))}catch(x){}const ok=await mailReq(c,uid);pendUI(c);if(!ok)M.insertAdjacentHTML('beforeend','<br><small>⚠️ تعذّر إرسال الإيميل، حاول مرة ثانية بعد شوي</small>')}catch(x){M.textContent=msg(x)}return}
     const [em,pp]=[e,pw];
     M.textContent='جارٍ الدخول…';try{await FB.login(em,pp);M.textContent='✔ تم، جارٍ فتح الإدارة…';history.replaceState(null,'',location.pathname);setTimeout(()=>location.reload(),500)}catch(x){F.p.select&&F.p.select();M.textContent=msg(x)}};
   O.onclick=async()=>{if(!confirm('تسجيل الخروج من الإدارة؟'))return;await FB.logout();location.reload()};
