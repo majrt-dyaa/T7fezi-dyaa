@@ -959,12 +959,15 @@ const TPLS=['أحسنت يا {الاسم}، تميزك اليوم كان واض�
 const badgeName=k=>(BADGES.find(b=>b[0]===k)||['',''])[1];
 const MYV=()=>{try{return JSON.parse(localStorage.getItem('diya-visitor'))}catch(e){return null}};
 /* ---------- إرسال إشعار لطلاب محددين ---------- */
-async function pushTo(vids,title,body){
+/* مفتاح ثابت لكل إرسال: يمنع OneSignal من إرسال نفس الإشعار مرتين (لو أرسله جهازين أو انضغط مرتين) */
+function idemKey(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}
+  const hx=n=>(n>>>0).toString(16).padStart(8,'0'),a=hx(h1)+hx(h2)+hx(h1^h2)+hx(Math.imul(h2,31)^h1);return a.slice(0,8)+'-'+a.slice(8,12)+'-4'+a.slice(13,16)+'-8'+a.slice(17,20)+'-'+a.slice(20,32)}
+async function pushTo(vids,title,body,key){
   if(!vids.length||!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,why:'nokey'};
-  const names=[...new Set(vids.map(v=>vName(v)).filter(n=>n&&n!=='(طالب)'))];
-  const conds=[...vids.map(v=>({field:'tag',key:'vid',relation:'=',value:v})),...names.map(n=>({field:'tag',key:'name',relation:'=',value:n}))].slice(0,100);
+  /* الاستهداف بمعرّف الطالب فقط (بدون الاسم) عشان ما توصل نسخ مكررة للأجهزة القديمة أو لمن يشاركه الاسم */
+  const conds=vids.map(v=>({field:'tag',key:'vid',relation:'=',value:v})).slice(0,100);
   const filters=[];conds.forEach((c,i)=>{if(i)filters.push({operator:'OR'});filters.push(c)});
-  try{const r=await fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',filters,headings:{en:title,ar:title},contents:{en:body,ar:body},url:location.origin+location.pathname})});
+  try{const r=await fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},body:JSON.stringify(Object.assign({app_id:PCFG.appId,target_channel:'push',filters,headings:{en:title,ar:title},contents:{en:body,ar:body},url:location.origin+location.pathname,web_push_topic:'diya-msg'},key?{idempotency_key:idemKey(key)}:{}))});
     const j=await r.json().catch(()=>({}));const n=+j.recipients||0;
     return {ok:r.ok&&!!j.id,n,err:j.errors?JSON.stringify(j.errors).slice(0,120):''}}catch(e){return {ok:false,err:String(e.message||e)}}
 }
@@ -1017,19 +1020,21 @@ document.addEventListener('submit',async e=>{const f=e.target;if(!f.classList||!
   const btn=f.querySelector('button.primary');btn.disabled=true;btn.textContent='⏳ جارٍ الإرسال…';let ok=0;const now=Date.now(),pushNow=[];
   for(const vid of ids){const n=vName(vid),m={id:uid(),t:txt.replaceAll('{الاسم}',n).slice(0,400),b,at:now};if(due>now){m.due=due;m.pu=0}else m.pu=1;
     const L=[...(MSGS[vid]||[]),m].slice(-60);try{await DB.doc('inbox/'+vid).set({m:L});MSGS[vid]=L;ok++;if(!m.due)pushNow.push(vid)}catch(x){}}
-  let pmsg='';if(pushNow.length){const r=await pushTo(pushNow,'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة'+(b?' مع وسام '+b:'')+' ✦');
+  let pmsg='';if(pushNow.length){const r=await pushTo(pushNow,'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة'+(b?' مع وسام '+b:'')+' ✦','m'+now+pushNow.join(','));
     pmsg=r.why==='nokey'?' · ⚠️ مفتاح الإشعارات غير محفوظ (تبويب 🔔 الإشعارات)':r.ok&&r.n?` · 🔔 وصل الإشعار لـ ${r.n} جهاز`:' · ⚠️ ما وصل إشعار لأي جهاز: الطالب ما فعّل الإشعارات من أيقونة الموقع، أو ما فتحه بعد التحديث'+(r.err?' ('+r.err+')':'')}
   MSEL.clear();say(`✔ أُرسلت ${ok} رسالة`+(due>now?' (مجدولة)':'')+pmsg,pmsg.includes('⚠️')?'err':'');drawV();
 },true);
 /* الرسائل المجدولة: جهاز المدير يرسل إشعارها في وقتها */
-setInterval(async()=>{if(ro||!MSGS||!DB)return;const now=Date.now();for(const [vid,L] of Object.entries(MSGS)){const due=L.filter(m=>m.due&&m.due<=now&&!m.pu);if(!due.length)continue;due.forEach(m=>m.pu=1);try{await DB.doc('inbox/'+vid).set({m:L});await pushTo([vid],'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة ✦')}catch(x){}}},30000);
+setInterval(async()=>{if(ro||!MSGS||!DB)return;const now=Date.now();for(const [vid,L] of Object.entries(MSGS)){const due=L.filter(m=>m.due&&m.due<=now&&!m.pu);if(!due.length)continue;due.forEach(m=>m.pu=1);try{await DB.doc('inbox/'+vid).set({m:L});await pushTo([vid],'✉️ مجرّة ضياء','عندك رسالة خاصة جديدة ✦','due'+due.map(m=>m.id).join(','))}catch(x){}}},30000);
 /* ---------- الطالب ---------- */
 let INB=[],REC={s:{},r:{}},inbSub=null,lastSeenPop='';
 const visibleMsgs=()=>INB.filter(m=>!m.due||m.due<=Date.now()).sort((a,b)=>(b.due||b.at)-(a.due||a.at));
 const unread=()=>visibleMsgs().filter(m=>!(REC.s&&REC.s[m.id]));
 function inbUI(){const b=document.getElementById('envb');if(!b)return;const V=visibleMsgs(),u=unread().length;b.hidden=!ro||!V.length;b.querySelector('i').textContent=u||'';b.classList.toggle('new',u>0);
   const T=document.getElementById('tabbar');if(T){const mb=T.querySelector('[data-t=more]');if(mb)mb.classList.toggle('dot',u>0)}
-  const top=unread()[0];if(top&&lastSeenPop!==top.id&&!busy&&!document.querySelector('#ov.on')){lastSeenPop=top.id;envPop(top)}}
+  /* الظرف ينبثق مرة وحدة بس لكل رسالة على هذا الجهاز، حتى لو قفل الطالب الموقع بدون ما يفتحها */
+  let pp=[];try{pp=JSON.parse(localStorage.getItem('diya-popped'))||[]}catch(e){}
+  const top=unread().find(m=>!pp.includes(m.id));if(top&&lastSeenPop!==top.id&&!busy&&!document.querySelector('#ov.on')&&!document.querySelector('#reg:not([hidden])')){lastSeenPop=top.id;try{localStorage.setItem('diya-popped',JSON.stringify([...pp,top.id].slice(-100)))}catch(e){}envPop(top)}}
 (function inbWatch(){const v=MYV();if(!ro||!v||!v.id||!DB){setTimeout(inbWatch,1500);return}
   try{DB.doc('inbox/'+v.id).onSnapshot(s=>{INB=(s&&s.exists&&s.data().m)||[];inbUI();if(view&&view.t==='inbox')drawV()},()=>{});
     DB.doc('rec/'+v.id).onSnapshot(s=>{const d=(s&&s.exists&&s.data())||{};REC={s:d.s||{},r:d.r||{}};inbUI();if(view&&view.t==='inbox')drawV()},()=>{})}catch(e){}})();
@@ -1642,7 +1647,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH33';
+const BUILD='GH34';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
