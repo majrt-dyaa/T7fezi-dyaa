@@ -203,10 +203,13 @@ window.FB_ERR=null;window.FB_USER=null;
   if(!window.firebase){window.FB_ERR='تعذّر تحميل Firebase';return}
   try{firebase.initializeApp(FB_CONFIG)}catch(e){window.FB_ERR=String(e.message||e);return}
   const fs=firebase.firestore(),au=firebase.auth();
-  const OWNER='Ycq9SBu9zMND4sfXEfaEPEGT64q2';window.FB_OWNER=OWNER;
-  const authReady=new Promise(r=>{const u=au.onAuthStateChanged(async x=>{
+  const OWNER='Ycq9SBu9zMND4sfXEfaEPEGT64q2';window.FB_OWNER=OWNER;const OWNER_EMAIL='alqahtaniabdallh65@gmail.com';
+  /* فتح رابط الدخول المرسل لإيميل المالك */
+  const linkIn=(async()=>{try{if(au.isSignInWithEmailLink&&au.isSignInWithEmailLink(location.href)){const ap=new URLSearchParams(location.search).get('approve');if(ap)try{sessionStorage.setItem('diya-approve',ap)}catch(e){}
+    if(au.currentUser&&/^req-/.test(au.currentUser.email||''))await au.signOut();await au.signInWithEmailLink(OWNER_EMAIL,location.href);history.replaceState(null,'',location.pathname);location.reload();await new Promise(()=>{})}}catch(e){window.FB_LINKERR=e&&e.code||String(e)}})();
+  const authReady=new Promise(r=>{linkIn.then(()=>{const u=au.onAuthStateChanged(async x=>{
     if(x&&/^req-/.test(x.email||'')){let ok=false;try{ok=(await fs.doc('admins/'+x.uid).get()).exists}catch(e){}if(!ok){window.FB_PEND=x;x=null}}
-    window.FB_USER=x;window.__authDone=true;u();r(x)})});
+    window.FB_USER=x;window.__authDone=true;u();r(x)})})});
   const clean=v=>JSON.parse(JSON.stringify(v));
   const wrap=s=>({exists:s.exists,id:s.id,data:()=>s.exists?s.data():undefined});
   const db={doc(p){const r=fs.doc(p);return{
@@ -219,6 +222,7 @@ window.FB_ERR=null;window.FB_USER=null;
     login:(e,p)=>au.signInWithEmailAndPassword(e,p),
     logout:()=>au.signOut(),
     isOwner:()=>!!(au.currentUser&&au.currentUser.uid===OWNER),
+    sendLink:(url)=>au.sendSignInLinkToEmail(OWNER_EMAIL,{url,handleCodeInApp:true}),
     reqAdmin:async n=>{let c=au.currentUser;
       if(!c||!/^req-/.test(c.email||'')){const rnd=()=>Math.random().toString(36).slice(2);const e='req-'+rnd()+rnd().slice(0,4)+'@diya-galaxy.app',pw=rnd()+rnd()+'A9!';await au.createUserWithEmailAndPassword(e,pw);c=au.currentUser}
       await fs.doc('reqs/'+c.uid).set({n:String(n).slice(0,40),at:Date.now(),ua:navigator.userAgent.slice(0,140)});window.FB_PEND=c;return c.uid},
@@ -1638,7 +1642,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH32';
+const BUILD='GH33';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
@@ -1682,7 +1686,7 @@ openV('home');updNow();
 <label class="sr" for="lgc_in">اسمك</label><input id="lgc_in" name="c" maxlength="40" placeholder="اسمك" aria-label="اسمك" autocomplete="name">
 <details id="lge"><summary class="mu">دخول المالك بالإيميل</summary>
 <input name="e" type="email" placeholder="الإيميل" aria-label="الإيميل" autocomplete="username">
-<input name="p" type="password" placeholder="كلمة السر" aria-label="كلمة السر" autocomplete="current-password"><button type="button" class="primary" id="lgown">دخول المالك</button></details>
+<input name="p" type="password" placeholder="كلمة السر" aria-label="كلمة السر" autocomplete="current-password"><button type="button" class="primary" id="lgown">دخول المالك</button><button type="button" id="lglink">📧 أرسل لي رابط دخول على إيميلي</button></details>
 <button class="primary" id="lgb">إرسال طلب الدخول</button><button type="button" id="lgc">إلغاء</button>
 <p id="lgm" class="mu" role="status" aria-live="polite"></p></form></div>
 <div id="reg" hidden><form id="regf"><h3>✦ أهلًا بك في مجرّة ضياء</h3><p class="mu">اكتب اسمك مرة واحدة فقط للدخول</p>
@@ -1727,12 +1731,14 @@ openV('home');updNow();
       if(k==='ok'){await FB.approve(id,q.n);box.querySelector('.apw').innerHTML='<h3>✅ تمت الموافقة</h3><p>'+String(q.n).replace(/[<>&]/g,'')+' صار مشرف.</p>'}
       else if(k==='no'){await FB.deny(id);box.querySelector('.apw').innerHTML='<h3>تم الرفض</h3>'}
       setTimeout(()=>box.remove(),k==='ok'||k==='no'?1800:0)}})();
+  document.getElementById('lglink').onclick=async()=>{M.textContent='جارٍ الإرسال…';try{await FB.sendLink(location.origin+location.pathname);M.textContent='📧 أرسلنا رابط دخول لإيميل المالك. افتحه من نفس الجوال وبتدخل الإدارة مباشرة.'}catch(x){M.textContent='تعذّر الإرسال: '+(x&&x.code||x)}};
+  if(window.FB_LINKERR){setTimeout(()=>{show();M.textContent='⚠️ رابط الدخول غير صالح أو انتهى ('+window.FB_LINKERR+')، اطلب رابط جديد.'},800)}
   document.getElementById('lgown').onclick=async()=>{const e=F.e.value.trim(),pw=F.p.value;if(!e||!pw){M.textContent='اكتب إيميلك وكلمة السر';F.e.focus();return}
     clearInterval(pollT);M.textContent='جارٍ الدخول…';try{const P=window.FB_PEND;if(P){try{await FB.deny(P.uid)}catch(x){}await FB.logout()}await FB.login(e,pw);try{localStorage.removeItem(AREQ)}catch(x){}M.textContent='✔ تم، جارٍ فتح الإدارة…';history.replaceState(null,'',location.pathname);setTimeout(()=>location.reload(),500)}catch(x){F.p.select&&F.p.select();M.textContent=msg(x)}};
   F.onsubmit=async ev=>{ev.preventDefault();if(!window.FB){M.textContent=window.FB_ERR||'Firebase غير متاح';return}
     const c=F.c.value.trim(),e=F.e.value.trim(),pw=F.p.value;
     if(!(e&&pw)){if(c.length<2){M.textContent='اكتب اسمك';F.c.focus();return}
-      M.textContent='جارٍ إرسال الطلب…';try{const uid=await FB.reqAdmin(c);try{localStorage.setItem(AREQ,JSON.stringify({n:c,uid,at:Date.now()}))}catch(x){}const ok=await mailReq(c,uid);pendUI(c);if(!ok)M.insertAdjacentHTML('beforeend','<br><small>⚠️ تعذّر إرسال الإيميل، حاول مرة ثانية بعد شوي</small>')}catch(x){M.textContent=msg(x)}return}
+      M.textContent='جارٍ إرسال الطلب…';try{const uid=await FB.reqAdmin(c);try{localStorage.setItem(AREQ,JSON.stringify({n:c,uid,at:Date.now()}))}catch(x){}let ok=false;try{await FB.sendLink(location.origin+location.pathname+'?approve='+uid);ok=true}catch(x){window.FB_LINKERR=x&&x.code}mailReq(c,uid);pendUI(c);if(!ok)M.insertAdjacentHTML('beforeend','<br><small>⚠️ تعذّر إرسال إيميل الموافقة ('+(window.FB_LINKERR||'')+')، الطلب ظاهر للمدير في لوحة الإدارة</small>')}catch(x){M.textContent=msg(x)}return}
     const [em,pp]=[e,pw];
     M.textContent='جارٍ الدخول…';try{await FB.login(em,pp);M.textContent='✔ تم، جارٍ فتح الإدارة…';history.replaceState(null,'',location.pathname);setTimeout(()=>location.reload(),500)}catch(x){F.p.select&&F.p.select();M.textContent=msg(x)}};
   O.onclick=async()=>{if(!confirm('تسجيل الخروج من الإدارة؟'))return;await FB.logout();location.reload()};
