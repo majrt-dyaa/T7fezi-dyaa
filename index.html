@@ -811,31 +811,51 @@ setInterval(()=>{const el=document.getElementById('myfam');if(!el)return;let v=n
 /* ===== إرسال الإشعارات تلقائيًا (للمدير) ===== */
 let PCFG=null,PKEY=null,pushKnown=null,lastLocalSubmit=0;
 async function pushLoad(){if(ro||!window.FB)return;try{PCFG=await FB.get('state/push')||{};if(!PCFG.appId)PCFG.appId='7e38f56f-34d2-446e-ba35-d70aaa5bdb6a';PKEY=await FB.get('secret/onesignal')}catch(e){PKEY=null}}
-async function pushSend(title,body){
-  if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,err:'لم تُضبط مفاتيح OneSignal بعد'};
+function idemK(s){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}
+  const hx=n=>(n>>>0).toString(16).padStart(8,'0'),a=hx(h1)+hx(h2)+hx(h1^h2)+hx(Math.imul(h2,31)^h1);return a.slice(0,8)+'-'+a.slice(8,12)+'-4'+a.slice(13,16)+'-8'+a.slice(17,20)+'-'+a.slice(20,32)}
+async function pushSend(title,body,key){
+  if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)await pushLoad();
+  if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,err:'مفتاح OneSignal غير محفوظ أو ما قدرنا نقرأه (تبويب 🔔 الإشعارات)'};
   const send=seg=>fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},
-    body:JSON.stringify({app_id:PCFG.appId,target_channel:'push',included_segments:[seg],headings:{en:title,ar:title},contents:{en:body||title,ar:body||title},url:location.origin+location.pathname})});
+    body:JSON.stringify(Object.assign({app_id:PCFG.appId,target_channel:'push',included_segments:[seg],headings:{en:title,ar:title},contents:{en:body||title,ar:body||title},url:location.origin+location.pathname},key?{idempotency_key:idemK(key+seg)}:{}))});
   try{let r=await send('Total Subscriptions');let j=await r.json().catch(()=>({}));
     if(!r.ok||(j.errors&&String(j.errors).includes('segment'))){r=await send('Subscribed Users');j=await r.json().catch(()=>({}))}
     if(!r.ok||j.errors)return {ok:false,err:JSON.stringify(j.errors||r.status).slice(0,140)};
     return {ok:true,n:j.recipients};
   }catch(e){return {ok:false,err:'تعذّر الاتصال بـ OneSignal ('+(e.message||e)+')'}}
 }
+/* سجل الإشعارات على هذا الجهاز */
+function plog(o){let L=[];try{L=JSON.parse(localStorage.getItem('diya-pushlog'))||[]}catch(e){}L.unshift(Object.assign({at:Date.now()},o));try{localStorage.setItem('diya-pushlog',JSON.stringify(L.slice(0,40)))}catch(e){}if(view&&view.t==='adm'&&view.tab==='push'&&!$('pv').contains(document.activeElement))drawV()}
 const pIds=()=>new Set([...ann.map(x=>'a'+x.id),...ach.map(x=>'h'+x.id)]);
-document.addEventListener('submit',e=>{const a=e.target&&e.target.dataset&&e.target.dataset.a;if(a==='ann-save'||a==='ach-save')lastLocalSubmit=Date.now()},true);
+/* كل إعلان/إنجاز جديد يدخل طابور الإرسال (بدون مهلة زمنية)، ويُعاد المحاولة لو فشل، ومفتاح ثابت يمنع التكرار */
+let PQ=[],pqBusy=false,PSENT=null;let pushCur=null;
+/* جديد فعلًا: إعلان خلال آخر 30 دقيقة، أو إنجاز بتاريخ اليوم (عشان ما تنرسل إشعارات قديمة عند تبديل البرنامج أو المزامنة) */
+function pRecent(k){if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x)return false;const t=+new Date(x.at);return !t||Math.abs(Date.now()-t)<30*60*1000}const x=ach.find(z=>'h'+z.id===k);return !!x&&(!x.d||x.d===today())}
+async function psentLoad(){if(PSENT)return PSENT;try{PSENT=new Set(((await FB.get('state/pushed'))||{}).ids||[])}catch(e){PSENT=new Set()}return PSENT}
+async function psentAdd(k){PSENT.add(k);try{const d=(await FB.get('state/pushed'))||{};const ids=[...new Set([...(d.ids||[]),...PSENT])].slice(-300);await FB.put('state/pushed',{ids})}catch(e){}}
 setInterval(async()=>{
-  if(ro||!synced.size)return;
-  if(!pushKnown){pushKnown=pIds();pushLoad();return}
-  const now=pIds(),fresh=[...now].filter(k=>!pushKnown.has(k));pushKnown=now;
-  if(!fresh.length||Date.now()-lastLocalSubmit>4000)return;
-  if(!PCFG||PCFG.auto===false)return;
-  for(const k of fresh){
-    let t,bd;
-    t='مجرّة ضياء';
-    if(k[0]==='a'){const x=ann.find(z=>'a'+z.id===k);if(!x||x.hide)continue;bd='📣 '+x.t+(x.b?'\n'+x.b:'')}
-    else{const x=ach.find(z=>'h'+z.id===k);if(!x||x.hide)continue;bd='🏆 '+(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'')+': '+x.t}
-    const r=await pushSend(t,bd);say(r.ok?'🔔 أُرسل إشعار للمشتركين':'⚠️ ما انرسل الإشعار: '+r.err,r.ok?'':'err');
-  }
+  if(ro||!synced.size||!window.FB_USER)return;
+  if(!pushKnown||pushCur!==cur){pushKnown=pIds();pushCur=cur;pushLoad();psentLoad();return}
+  const now=pIds(),fresh=[...now].filter(k=>!pushKnown.has(k)&&(Date.now()-lastLocalSubmit<180000||pRecent(k)));pushKnown=now;
+  fresh.forEach(k=>{if(!PQ.some(q=>q.k===k))PQ.push({k,tries:0,next:Date.now()+(k[0]==='h'?1200:600)})});
+  if(pqBusy||!PQ.length)return;pqBusy=true;
+  try{
+    if(!PCFG)await pushLoad();await psentLoad();
+    const t0=Date.now();
+    for(const q of [...PQ]){
+      if(q.next>t0)continue;
+      if(PCFG&&PCFG.auto===false){PQ=PQ.filter(z=>z!==q);continue}
+      let bd;
+      if(q.k[0]==='a'){const x=ann.find(z=>'a'+z.id===q.k);if(!x||x.hide){PQ=PQ.filter(z=>z!==q);continue}bd='📣 '+x.t+(x.b?'\n'+x.b:'')}
+      else{const x=ach.find(z=>'h'+z.id===q.k);if(!x||x.hide){PQ=PQ.filter(z=>z!==q);continue}bd='🏆 '+(x.i?x.i+' ':'')+((FAM[x.f]||{}).n||'')+': '+x.t}
+      if(PSENT.has(q.k)){PQ=PQ.filter(z=>z!==q);continue}
+      const r=await pushSend('مجرّة ضياء',bd,'auto-'+q.k);
+      if(r.ok){PQ=PQ.filter(z=>z!==q);await psentAdd(q.k);plog({t:bd,ok:1,n:r.n});say(r.n===0?'⚠️ انرسل الإشعار لكن ما فيه أجهزة مشتركة (0)':'🔔 أُرسل الإشعار'+(r.n!=null?' إلى '+r.n+' جهاز':''),r.n===0?'err':'')}
+      else{q.tries++;plog({t:bd,ok:0,err:r.err,try:q.tries});
+        if(q.tries>=6){PQ=PQ.filter(z=>z!==q);say('⚠️ فشل إرسال الإشعار بعد عدة محاولات: '+r.err+' · تقدر ترسله يدويًا من 🔔 الإشعارات','err')}
+        else{q.next=Date.now()+[5,15,30,60,120][q.tries-1]*1000;say('⏳ تعذّر إرسال الإشعار، بنعيد المحاولة تلقائيًا ('+q.tries+'/5)','err')}}
+    }
+  }finally{pqBusy=false}
 },1500);
 function aPush(){
   if(PCFG===null){pushLoad().then(()=>drawV());return '<p class="mu">جارٍ التحميل…</p>'}
@@ -848,7 +868,8 @@ function aPush(){
   <button class="primary">حفظ</button></form>
   <h3>إرسال يدوي / تجربة</h3>
   <form class="frm pushman"><input name="t" required maxlength="60" placeholder="العنوان" value="مجرّة ضياء"><input name="b" maxlength="140" placeholder="النص" value="هذا إشعار تجريبي من مجرّة ضياء"><button>إرسال الآن</button></form>
-  <p class="mu">المفتاح يُحفظ في Firebase ولا يقرؤه إلا حساب المدير.</p>`;
+  <p class="mu">المفتاح يُحفظ في Firebase ولا يقرؤه إلا حساب المدير.</p>
+  <h3>📜 سجل الإشعارات (هذا الجهاز)</h3>${(()=>{let L=[];try{L=JSON.parse(localStorage.getItem('diya-pushlog'))||[]}catch(e){}return L.length?`<div class="mlog">${L.map(x=>`<div class="mli"><div><b>${x.ok?(x.n===0?'⚠️ 0 جهاز':'✅ '+(x.n!=null?x.n+' جهاز':'وصل')):'❌ فشل'+(x.try?' (محاولة '+x.try+')':'')}</b> <small class="mu">${new Date(x.at).toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'})}</small></div><div style="white-space:pre-wrap">${esc(String(x.t||'').slice(0,120))}</div>${x.err?`<small class="mu" dir="ltr">${esc(x.err)}</small>`:''}</div>`).join('')}</div>`:'<p class="mu">ما انرسل شي من هذا الجهاز للحين.</p>'})()}`;
 }
 document.addEventListener('submit',async e=>{
   const f=e.target;if(!f.classList)return;
@@ -857,7 +878,7 @@ document.addEventListener('submit',async e=>{
     try{await FB.put('state/push',{appId,auto});if(key)await FB.put('secret/onesignal',{key});await pushLoad();say('✔ تم حفظ إعدادات الإشعارات');drawV()}
     catch(x){say('⚠️ تعذّر الحفظ. تأكد من تحديث قواعد Firebase','err')}}
   else if(f.classList.contains('pushman')){e.preventDefault();e.stopPropagation();if(ro)return;
-    const r=await pushSend(f.t.value.trim(),f.b.value.trim());say(r.ok?'🔔 تم الإرسال'+(r.n!=null?' إلى '+r.n+' جهاز':''):'⚠️ '+r.err,r.ok?'':'err')}
+    const r=await pushSend(f.t.value.trim(),f.b.value.trim());plog({t:f.t.value.trim()+' — '+f.b.value.trim(),ok:r.ok?1:0,n:r.n,err:r.err});say(r.ok?'🔔 تم الإرسال'+(r.n!=null?' إلى '+r.n+' جهاز':''):'⚠️ '+r.err,r.ok?'':'err')}
 },true);
 /* ===== سجل الرايات ===== */
 const wflag=c=>`<svg class="wf" viewBox="0 0 44 52" aria-hidden="true"><rect x="4" y="2" width="3.2" height="48" rx="1.5" fill="#efe9df"/><path d="M7.2 5h30l-7.5 10 7.5 10h-30z" fill="${c}"/></svg>`;
@@ -1647,7 +1668,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH34';
+const BUILD='GH35';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
