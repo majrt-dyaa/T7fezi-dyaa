@@ -224,7 +224,7 @@ window.FB_ERR=null;window.FB_USER=null;window.FB_ROLE=null;
     if(au.currentUser)await au.signOut();await au.signInWithEmailLink(OWNER_EMAIL,location.href);history.replaceState(null,'',location.pathname);location.reload();await new Promise(()=>{})}}catch(e){window.FB_LINKERR=e&&e.code||String(e)}})();
   /* الصلاحية: owner مالك · admin مشرف عام · cat مسؤول لجنة · screen شاشة عرض · وغيرها = طالب */
   async function roleOf(x){
-    if(!x||x.isAnonymous)return null;
+    if(!x)return null;
     if(x.uid===OWNER)return{role:'owner',cats:[]};
     try{const s=await fs.doc('admins/'+x.uid).get();if(s.exists){const d=s.data()||{};return{role:d.role||'admin',cats:Array.isArray(d.cats)?d.cats:[],n:d.n||''}}}catch(e){}
     return null}
@@ -233,7 +233,13 @@ window.FB_ERR=null;window.FB_USER=null;window.FB_ROLE=null;
     if(x&&!x.isAnonymous&&!R&&/^req-/.test(x.email||''))window.FB_PEND=x;
     window.FB_ROLE=R;window.FB_USER=R?x:null;window.__authDone=true;u();r(window.FB_USER);
     /* الطالب ياخذ هوية خفية لجهازه (تمنع أحد يكتب باسم غيره) */
-    if(!x)au.signInAnonymously().catch(e=>{window.FB_ANONERR=e&&e.code})})})});
+    if(!x)au.signInAnonymously().catch(e=>{window.FB_ANONERR=e&&e.code});
+    roleWatch()})})});
+  /* لو المالك أعطى هذا الجهاز صلاحية أو غيّرها أو سحبها: يتحدّث تلقائيًا */
+  const rk=R=>R?JSON.stringify([R.role,(R.cats||[]).slice().sort()]):'';let rwOn=false;
+  function roleWatch(){if(rwOn)return;const go=x=>{if(!x||x.uid===OWNER||rwOn)return;rwOn=true;const k0=rk(window.FB_ROLE);
+      fs.doc('admins/'+x.uid).onSnapshot(s=>{const d=s.exists?(s.data()||{}):null;const R=d?{role:d.role||'admin',cats:Array.isArray(d.cats)?d.cats:[]}:null;if(rk(R)===k0||(s.metadata&&s.metadata.fromCache))return;let t=0;try{t=+sessionStorage.getItem('diya-rrl')||0}catch(e){}const w=Math.max(0,15000-(Date.now()-t));setTimeout(()=>{try{sessionStorage.setItem('diya-rrl',Date.now())}catch(e){}location.reload()},w)},()=>{})};
+    if(au.currentUser)go(au.currentUser);else{const u=au.onAuthStateChanged(x=>{if(x){u();go(x)}})}}
   window.FB_ANON=()=>au.currentUser&&au.currentUser.isAnonymous?au.currentUser.uid:null;
   const clean=v=>JSON.parse(JSON.stringify(v));
   const wrap=s=>({exists:s.exists,id:s.id,data:()=>s.exists?s.data():undefined});
@@ -242,8 +248,8 @@ window.FB_ERR=null;window.FB_USER=null;window.FB_ROLE=null;
   const delify=o=>{if(o===null)return DEL?DEL():null;if(typeof o!=='object'||Array.isArray(o))return o;const r={};for(const k in o)r[k]=delify(o[k]);return r};
   const db={doc(p){const r=fs.doc(P(p));return{
     get:async()=>wrap(await r.get()),
-    set:async v=>{if(!au.currentUser||au.currentUser.isAnonymous)throw new Error('read-only');await r.set(clean(v))},
-    merge:async v=>{if(!au.currentUser||au.currentUser.isAnonymous)throw new Error('read-only');await r.set(delify(clean(v)),{merge:true})},
+    set:async v=>{if(!au.currentUser||(au.currentUser.isAnonymous&&!window.FB_ROLE))throw new Error('read-only');await r.set(clean(v))},
+    merge:async v=>{if(!au.currentUser||(au.currentUser.isAnonymous&&!window.FB_ROLE))throw new Error('read-only');await r.set(delify(clean(v)),{merge:true})},
     delete:async()=>{if(!au.currentUser)throw new Error('read-only');await r.delete()},
     onSnapshot:(cb,er)=>r.onSnapshot(s=>cb(wrap(s)),er||(()=>{}))}}};
   window.claude={use:async n=>{if(n!=='db')return null;await authReady;return db}};
@@ -277,6 +283,7 @@ window.FB_ERR=null;window.FB_USER=null;window.FB_ROLE=null;
     addPub:async(c,v)=>{await needAuth();return fs.collection(P(c)).add(JSON.parse(JSON.stringify(v)))},
     visAdd:async(id,n)=>{await needAuth();const u=au.currentUser;return fs.doc(P('visitors/'+id)).set(Object.assign({n:String(n).slice(0,40),t:Date.now()},u&&u.isAnonymous?{uid:u.uid}:{}))},
     visClaim:async id=>{await needAuth();const u=au.currentUser;if(!u||!u.isAnonymous)return false;await fs.doc(P('visitors/'+id)).set({uid:u.uid},{merge:true});return true},
+    visPush:async id=>{const u=au.currentUser;if(!u||!u.isAnonymous)return false;await fs.doc(P('visitors/'+id)).set({p:1},{merge:true});return true},
     visDel:id=>fs.doc(P('visitors/'+id)).delete(),
     visWatch:cb=>fs.collection(P('visitors')).onSnapshot(q=>cb(q.docs.map(d=>Object.assign({id:d.id},d.data())).sort((x,y)=>(y.t||0)-(x.t||0))),e=>cb(null,e))
   };
@@ -857,12 +864,22 @@ function vAdm(v){
 let VIS=null,VISERR=null,visSub=null;
 function visStart(){if(visSub||ro||!window.FB||!FB.visWatch)return;visSub=1;visSub=FB.visWatch((l,e)=>{if(l){VIS=l;VISERR=null}else VISERR=e;if(view&&view.t==='adm'&&view.tab==='vis')setTimeout(drawV,0)})}
 function famSel(v){const i=famOf(v.id,v.n);return `<select class="vfam" data-vid="${esc(v.id)}" data-vn="${esc(v.n||'')}"><option value="-1">— بدون أسرة —</option>${FAM.map((f,j)=>`<option value="${j}"${j===i?' selected':''}>${esc((f.i?f.i+' ':'')+f.n)}</option>`).join('')}</select>`}
-function aVis(){visStart();
+const nrm=n=>String(n||'').trim().replace(/\s+/g,' ').replace(/[أإآ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');let DUP=new Set();
+let VROLE=null;
+function aVis(){visStart();const own=FB.isOwner&&FB.isOwner();if(own)rqStart();const AM={};(ADMS||[]).forEach(a=>AM[a.id]=a);if(VIS){const c={};VIS.forEach(v=>{const k=nrm(v.n);c[k]=(c[k]||0)+1});DUP=new Set(Object.keys(c).filter(k=>c[k]>1))}
   if(VISERR)return '<p class="mu">⚠️ تعذّر قراءة قائمة الزوار. تأكد أنك حدّثت قواعد Firebase الجديدة.</p>';
   if(!VIS)return '<p class="mu">جارٍ التحميل…</p>';
   const f=t=>t?new Date(t).toLocaleString('ar-SA-u-nu-latn',{dateStyle:'short',timeStyle:'short'}):'';
-  return `<h3>🙋 الزوار المسجّلون <small class="mu">(${VIS.length})</small></h3><p class="mu">كل من فتح الرابط وكتب اسمه، مرة واحدة لكل جهاز. اختر أسرة كل طالب من القائمة (أسر البرنامج الحالي). 🧭 = رحلته وشهادته · ✕ = حذف الاسم، وجواله بيطلب منه يسجّل اسمه من جديد. بدون أسرة: <b>${VIS.filter(v=>famOf(v.id,v.n)<0).length}</b></p>`+(VIS.length?`<table class="dt"><tr><th>#</th><th>الاسم</th><th>الأسرة</th><th>وقت التسجيل</th><th></th></tr>${VIS.map((v,i)=>`<tr><td>${VIS.length-i}</td><td>${esc(v.n||'')}</td><td>${famSel(v)}</td><td>${f(v.t)}</td><td style="white-space:nowrap"><button class="vme" data-vid="${esc(v.id)}" title="رحلته وشهادته">🧭</button> <button class="vdel" data-vid="${esc(v.id)}" title="حذف">✕</button></td></tr>`).join('')}</table>`:'<p class="mu">لا يوجد زوار مسجّلون بعد.</p>');
+  return `<h3>🙋 الزوار المسجّلون <small class="mu">(${VIS.length})</small></h3><p class="mu">كل من فتح الرابط وكتب اسمه، مرة واحدة لكل جهاز. اختر أسرة كل طالب من القائمة (أسر البرنامج الحالي). 🧭 = رحلته وشهادته · ✕ = حذف الاسم: جواله بيطلب منه يسجّل من جديد، وما توصله إشعارات لين يسجّل. 🔔 = جواله مفعّل الإشعارات. 👑 = أعطه صلاحية (مشرف عام / مسؤول لجنة / شاشة عرض) مباشرة بدون ما يطلب دخول. ⚠️ مكرر = الاسم مسجّل أكثر من مرة: احذف القديم وخلّ اللي عليه 🔔 أو الأحدث (الأحدث فوق). بدون أسرة: <b>${VIS.filter(v=>famOf(v.id,v.n)<0).length}</b></p>`+(VIS.length?`<table class="dt"><tr><th>#</th><th>الاسم</th><th>الأسرة</th><th>وقت التسجيل</th><th></th></tr>${VIS.map((v,i)=>`<tr><td>${VIS.length-i}</td><td>${esc(v.n||'')}${v.p?' <span title="جواله مفعّل الإشعارات">🔔</span>':''}${DUP.has(nrm(v.n))?' <span class="mbd" title="الاسم مسجّل أكثر من مرة">⚠️ مكرر</span>':''}</td><td>${famSel(v)}</td><td>${f(v.t)}</td><td><div style="display:grid;grid-template-columns:repeat(2,auto);gap:4px;justify-content:center"><button class="vme" data-vid="${esc(v.id)}" title="رحلته وشهادته">🧭</button> <button class="vdel" data-vid="${esc(v.id)}" title="حذف">✕</button>${own?` <button class="vrole" data-vid="${esc(v.id)}" title="${v.uid?'صلاحية إدارة':'لازم يفتح الموقع مرة بعد التحديث'}"${v.uid?'':' disabled'}>👑</button>`:''}</div></td></tr>${v.uid&&AM[v.uid]?`<tr><td></td><td colspan="4"><span class="mbd">${roleTxt(AM[v.uid])}</span></td></tr>`:''}${own&&VROLE===v.id&&v.uid?`<tr><td></td><td colspan="4" style="text-align:right"><div class="rqbox vrbox" data-id="${esc(v.uid)}" data-n="${esc(v.n||'')}"><b>👑 صلاحية ${esc(v.n||'')}</b>${roleW(AM[v.uid]?AM[v.uid].role:'cat',AM[v.uid]?AM[v.uid].cats:[])}<div class="row"><button class="primary vrsave">💾 حفظ الصلاحية</button>${AM[v.uid]?'<button class="vrrev">إلغاء الصلاحية</button>':''}<button class="vrx">إغلاق</button></div><p class="mu">يتحدّث جواله تلقائيًا خلال ثواني ويصير عنده الصلاحية بدون أي دخول.</p></div></td></tr>`:''}`).join('')}</table>`:'<p class="mu">لا يوجد زوار مسجّلون بعد.</p>');
 }
+document.addEventListener('click',async e=>{const b=e.target.closest('.vrole,.vrsave,.vrrev,.vrx');if(!b||ro||!(FB.isOwner&&FB.isOwner()))return;e.stopPropagation();
+  if(b.classList.contains('vrole')){VROLE=VROLE===b.dataset.vid?null:b.dataset.vid;drawV();return}
+  if(b.classList.contains('vrx')){VROLE=null;drawV();return}
+  const box=b.closest('.vrbox');
+  try{if(b.classList.contains('vrsave')){const {role,cats}=roleRead(box);if(role==='cat'&&!cats.length){say('اختر لجنة واحدة على الأقل','err');return}
+      await FB.approve(box.dataset.id,box.dataset.n,role,cats);VROLE=null;say('👑 '+box.dataset.n+' صار: '+ROLES[role]);drawV()}
+    else{if(!conf2(b,'تأكيد الإلغاء؟'))return;await FB.revoke(box.dataset.id);VROLE=null;say('أُلغيت صلاحية '+box.dataset.n);drawV()}}
+  catch(x){say('⚠️ تعذّر: حدّث قواعد Firebase','err')}},true);
 document.addEventListener('click',async e=>{const b=e.target.closest('.vdel');if(!b||ro)return;if(b.dataset.ok!=='1'){b.dataset.ok='1';b.textContent='تأكيد؟';setTimeout(()=>{b.dataset.ok='';b.textContent='✕'},2500);return}try{await FB.visDel(b.dataset.vid);kickAdd(b.dataset.vid);say('🗑 حُذف الاسم · جواله بيطلب منه يسجّل من جديد')}catch(x){say('⚠️ تعذّر الحذف','err')}});
 
 /* ===== أعضاء الأسر ===== */
@@ -890,10 +907,13 @@ async function pushSend(title,body,key){
   if(ENV)return {ok:true,n:0,err:'',beta:1}; /* تجريبي: ما ينرسل للطلاب */
   if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)await pushLoad();
   if(!PCFG||!PCFG.appId||!PKEY||!PKEY.key)return {ok:false,err:'مفتاح OneSignal غير محفوظ أو ما قدرنا نقرأه (تبويب 🔔 الإشعارات)'};
+  /* المحذوفين من الزوار ما يوصلهم إشعار: نرسل لكل جهاز ما عنده اسم، أو اسمه غير محذوف */
+  let kick=[];try{const k=await FB.get('state/kick');kick=((k&&k.ids)||[]).filter(x=>typeof x==='string'&&x).slice(-190)}catch(e){}
+  const tgt=seg=>kick.length?{filters:[{field:'tag',key:'vid',relation:'not_exists'},{operator:'OR'},{field:'tag',key:'vid',relation:'exists'},...kick.map(v=>({field:'tag',key:'vid',relation:'!=',value:v}))]}:{included_segments:[seg]};
   const send=seg=>fetch('https://api.onesignal.com/notifications?c=push',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Key '+PKEY.key},
-    body:JSON.stringify(Object.assign({app_id:PCFG.appId,target_channel:'push',included_segments:[seg],headings:{en:title,ar:title},contents:{en:body||title,ar:body||title},url:location.origin+location.pathname},key?{idempotency_key:idemK(key+seg)}:{}))});
+    body:JSON.stringify(Object.assign({app_id:PCFG.appId,target_channel:'push'},tgt(seg),{headings:{en:title,ar:title},contents:{en:body||title,ar:body||title},url:location.origin+location.pathname},key?{idempotency_key:idemK(key+seg)}:{}))});
   try{let r=await send('Total Subscriptions');let j=await r.json().catch(()=>({}));
-    if(!r.ok||(j.errors&&String(j.errors).includes('segment'))){r=await send('Subscribed Users');j=await r.json().catch(()=>({}))}
+    if(!kick.length&&(!r.ok||(j.errors&&String(j.errors).includes('segment')))){r=await send('Subscribed Users');j=await r.json().catch(()=>({}))}
     if(!r.ok||j.errors)return {ok:false,err:JSON.stringify(j.errors||r.status).slice(0,140)};
     return {ok:true,n:j.recipients};
   }catch(e){return {ok:false,err:'تعذّر الاتصال بـ OneSignal ('+(e.message||e)+')'}}
@@ -1480,7 +1500,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('.lgu');if(!b||ro
 let REQS=null,ADMS=null,rqSub=null;
 function rqStart(){if(rqSub||ro||!window.FB||!FB.colWatch)return;rqSub=1;
   FB.colWatch('reqs',L=>{L.sort((a,b)=>(b.at||0)-(a.at||0));REQS=L;if(view&&view.t==='adm'&&view.tab==='areq')softDraw();rqDot()},()=>{REQS=REQS||[]});
-  FB.colWatch('admins',L=>{ADMS=L;if(view&&view.t==='adm'&&view.tab==='areq')softDraw()},()=>{ADMS=ADMS||[]})}
+  FB.colWatch('admins',L=>{ADMS=L;if(view&&view.t==='adm'&&(view.tab==='areq'||view.tab==='vis'))softDraw()},()=>{ADMS=ADMS||[]})}
 let rqSeen=0;function rqDot(){const n=(REQS||[]).length;if(n>rqSeen&&FB.isOwner&&FB.isOwner())say('🔐 طلب دخول إدارة جديد · ⚙ الإدارة ← 🔐 الصلاحيات');rqSeen=n}
 setTimeout(function rqAuto(){if(!window.__authDone||!DB){setTimeout(rqAuto,1500);return}if(!ro&&window.FB_USER)rqStart()},3500);
 const ROLES={admin:'🛡 مشرف عام',cat:'📋 مسؤول لجنة',screen:'📺 شاشة عرض'};
@@ -1769,7 +1789,7 @@ function onIdx(s){
   }
 }
 /* شبكة أمان للمشاهد: سحب دوري للبيانات حتى لو انقطع البث المباشر */
-const BUILD='GH36';
+const BUILD='GH38';
 function synMsg(m,bad){const e=$('syn');if(!e)return;e.textContent=m;e.classList.toggle('bad',!!bad)}
 const hhmm=()=>new Date().toLocaleTimeString('en-GB');
 async function pullNow(force){
@@ -2008,7 +2028,9 @@ if('serviceWorker' in navigator&&window.isSecureContext&&location.protocol!=='fi
       }catch(e){console.warn('onesignal',e)}
     });
   }
-  function tagMe(){try{const v=JSON.parse(localStorage.getItem('diya-visitor'));if(OS&&v){if(v.n)OS.User.addTag('name',v.n);if(v.id)OS.User.addTag('vid',v.id)}}catch(e){}}
+  function tagMe(){try{const v=JSON.parse(localStorage.getItem('diya-visitor'));if(OS&&v){if(v.n)OS.User.addTag('name',v.n);if(v.id)OS.User.addTag('vid',v.id);
+    /* نعلّم اسمه في قائمة الزوار إن جواله مفعّل الإشعارات (🔔) */
+    if(v.id&&OS.User.PushSubscription.optedIn&&sessionStorage.getItem('diya-pmark')!==v.id&&window.FB&&FB.visPush)FB.visPush(v.id).then(ok=>{if(ok)sessionStorage.setItem('diya-pmark',v.id)}).catch(()=>{})}}catch(e){}}
   setInterval(tagMe,60000);
   function upd(){if(!OS)return;tagMe();const on=OS.User.PushSubscription.optedIn;B.innerHTML=on?'🔔<span> الإشعارات مفعّلة</span>':'🔔<span> فعّل الإشعارات</span>';B.classList.toggle('on',!!on)}
   B.onclick=async()=>{
